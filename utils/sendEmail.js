@@ -1,7 +1,13 @@
-
 const transporter = require("../config/nodemailer");
 
 const sendEmail = async ({ to, subject, html, attachments = [] }) => {
+  console.log("📧 sendEmail called");
+  console.log("  → to:", to);
+  console.log("  → subject:", subject);
+  console.log("  → EMAIL_USER:", process.env.EMAIL_USER ? "✅ set" : "❌ missing");
+  console.log("  → EMAIL_PASS:", process.env.EMAIL_PASS ? "✅ set" : "❌ missing");
+  console.log("  → EMAIL_PASS length:", process.env.EMAIL_PASS?.length);
+
   try {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       console.log(`⚠️ Email skipped: ${subject}`);
