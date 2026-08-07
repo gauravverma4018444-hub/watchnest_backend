@@ -1,31 +1,46 @@
-const transporter = require("../config/nodemailer");
+const { apiInstance, brevo } = require("../config/brevo");
 
 const sendEmail = async ({ to, subject, html, attachments = [] }) => {
   console.log("📧 sendEmail called");
   console.log("  → to:", to);
   console.log("  → subject:", subject);
-  console.log("  → EMAIL_USER:", process.env.EMAIL_USER ? "✅ set" : "❌ missing");
-  console.log("  → EMAIL_PASS:", process.env.EMAIL_PASS ? "✅ set" : "❌ missing");
-  console.log("  → EMAIL_PASS length:", process.env.EMAIL_PASS?.length);
+
+  if (!process.env.BREVO_API_KEY) {
+    console.warn(`⚠️ Email skipped (no BREVO_API_KEY): ${subject}`);
+    return { success: false, skipped: true };
+  }
+
+  if (!to) {
+    console.warn(`⚠️ Email skipped (no recipient): ${subject}`);
+    return { success: false, skipped: true };
+  }
 
   try {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.log(`⚠️ Email skipped: ${subject}`);
-      return { dev: true };
+    const sendSmtpEmail = new brevo.SendSmtpEmail();
+    sendSmtpEmail.sender = {
+      name: process.env.SENDER_NAME || "WatchNest",
+      email: process.env.SENDER_EMAIL,
+    };
+    sendSmtpEmail.to = [{ email: to }];
+    sendSmtpEmail.subject = subject;
+    sendSmtpEmail.htmlContent = html;
+
+    // Handle attachments
+    if (attachments && attachments.length > 0) {
+      sendSmtpEmail.attachment = attachments.map((att) => ({
+        name: att.filename,
+        content: Buffer.isBuffer(att.content)
+          ? att.content.toString("base64")
+          : Buffer.from(att.content).toString("base64"),
+      }));
     }
 
-    const info = await transporter.sendMail({
-      from: `"WatchNest" <${process.env.EMAIL_USER}>`,
-      to,
-      subject,
-      html,
-      attachments,
-    });
-
-    console.log(`✅ Email sent to ${to}`);
-    return { success: true, messageId: info.messageId };
+    const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    console.log(`✅ Email sent to ${to} | ID: ${result.body?.messageId}`);
+    return { success: true, messageId: result.body?.messageId };
   } catch (error) {
     console.error("❌ Email error:", error.message);
+    console.error("  → Full error:", error.response?.body || error);
     return { success: false, error: error.message };
   }
 };

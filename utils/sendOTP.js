@@ -1,35 +1,31 @@
-
-let transporter = null;
-
-// Try to load nodemailer config, but don't crash if it fails
-try {
-  transporter = require("../config/nodemailer");
-} catch (err) {
-  console.warn("⚠️  Nodemailer config not loaded:", err.message);
-}
+const { apiInstance, brevo } = require("../config/brevo");
 
 const sendOTP = async (email, otp) => {
-  // ✅ ALWAYS print OTP to terminal (works even without email)
+  // ✅ ALWAYS print OTP to terminal (fallback)
   console.log("\n╔═══════════════════════════════════════════╗");
   console.log(`║  📧 EMAIL: ${email}`);
   console.log(`║  🔑 OTP CODE: ${otp}`);
   console.log(`║  ⏰ Valid for 10 minutes`);
   console.log("╚═══════════════════════════════════════════╝\n");
 
-  // ✅ If no email config, just return success (OTP is in terminal)
-  if (!transporter || !process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.log("⚠️  Email not configured — use OTP from terminal above");
+  // ✅ If Brevo not configured, use terminal OTP
+  if (!process.env.BREVO_API_KEY) {
+    console.log("⚠️ Brevo not configured — use OTP from terminal above");
     return { success: true, dev: true };
   }
 
-  const mailOptions = {
-    from: `"YouTube Clone" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "🔐 OTP Verification - YouTube Clone",
-    html: `
+  try {
+    const sendSmtpEmail = new brevo.SendSmtpEmail();
+    sendSmtpEmail.sender = {
+      name: process.env.SENDER_NAME || "WatchNest",
+      email: process.env.SENDER_EMAIL,
+    };
+    sendSmtpEmail.to = [{ email }];
+    sendSmtpEmail.subject = "🔐 OTP Verification - WatchNest";
+    sendSmtpEmail.htmlContent = `
       <div style="font-family:Arial,sans-serif;max-width:500px;margin:auto;
         padding:30px;border:1px solid #ddd;border-radius:10px;">
-        <h2 style="color:#FF0000;text-align:center;">YouTube Clone</h2>
+        <h2 style="color:#FF0000;text-align:center;">WatchNest</h2>
         <h3>Email Verification</h3>
         <p>Your OTP for email verification is:</p>
         <div style="background:#f4f4f4;padding:20px;text-align:center;
@@ -42,17 +38,15 @@ const sendOTP = async (email, otp) => {
           Do not share it with anyone.
         </p>
       </div>
-    `,
-  };
+    `;
 
-  // ✅ Try to send email — but DON'T crash if it fails
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log(`✅ Email sent to ${email}`);
-    return { success: true };
+    const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    console.log(`✅ OTP email sent to ${email} | ID: ${result.body?.messageId}`);
+    return { success: true, messageId: result.body?.messageId };
   } catch (err) {
     console.error(`❌ Email send failed: ${err.message}`);
-    console.log(`💡 But OTP is still in terminal above — user can verify!`);
+    console.error("  → Full error:", err.response?.body || err);
+    console.log(`💡 OTP is still in terminal above — user can verify!`);
     return { success: true, dev: true, error: err.message };
   }
 };
