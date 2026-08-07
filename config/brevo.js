@@ -7,9 +7,10 @@ if (process.env.BREVO_API_KEY) {
     brevo.TransactionalEmailsApiApiKeys.apiKey,
     process.env.BREVO_API_KEY
   );
+
   console.log("✅ Brevo email service initialized");
 } else {
-  console.warn("⚠️ BREVO_API_KEY not set - emails will be skipped");
+  console.warn("⚠️ BREVO_API_KEY not set");
 }
 
 module.exports = { apiInstance, brevo };

@@ -46,12 +46,9 @@ const getFilterStatus = async (req, res) => {
 };
 
 // ==================== SET PIN (first time only) ====================
-// POST /api/content-filter/set-pin
 const setPin = async (req, res) => {
   try {
     const { pin, confirmPin } = req.body;
-
-    console.log("\n🔐 SET PIN request from:", req.user.email);
 
     if (!isValidPin(pin)) {
       return res.status(400).json({
@@ -65,20 +62,17 @@ const setPin = async (req, res) => {
 
     const user = await User.findById(req.user._id);
 
-    // ✅ CRITICAL: BLOCK if PIN already exists
     if (user.contentFilter?.pin) {
       return res.status(403).json({
-        message:
-          "PIN already exists. Use 'Change PIN' with your current PIN.",
+        message: "PIN already exists. Use Change PIN with your current PIN.",
         hasPin: true,
       });
     }
 
-    // ✅ First time setup - auto-enable
     user.contentFilter = {
       pin: hashPin(pin),
       pinLength: pin.length,
-      enabled: true,  // ✅ ALWAYS enable on first set
+      enabled: true,
       failedAttempts: 0,
       lockedUntil: null,
       setAt: new Date(),
@@ -87,50 +81,51 @@ const setPin = async (req, res) => {
     user.markModified("contentFilter");
     await user.save();
 
-    console.log(`   ✅ PIN set & filter ENABLED for ${user.email}`);
-
-    // Verify save
-    const verify = await User.findById(user._id).select("contentFilter");
-    console.log(`   Verified in DB: enabled=${verify.contentFilter.enabled}`);
-
     try {
       await sendEmail({
         to: user.email,
-        subject: "🎉 Content Filter Activated",
+        subject: "Content Filter Activated - WatchNest",
         html: `
-          <div style="font-family:Arial,sans-serif;max-width:500px;margin:auto;padding:20px;">
-            <h2 style="color:#10b981;">🎉 Filter Activated!</h2>
-            <p>Hi <b>${user.name}</b>,</p>
-            <p>Your content filter is now <b>ACTIVE</b>.</p>
-            <div style="background:#e8f5e9;padding:15px;border-radius:8px;border-left:4px solid #10b981;">
-              <p style="margin:0;"><b>Status:</b> 🟢 ACTIVE</p>
+          <div style="font-family:Arial,sans-serif;max-width:500px;margin:auto;padding:20px;border:1px solid #e0e0e0;border-radius:8px;">
+            <h2 style="color:#10b981;">Hello, I am WatchNest</h2>
+            <p>Dear <b>${user.name}</b>,</p>
+            <p>
+              This is a confirmation that your <b>Content Filter</b> has been 
+              successfully activated on your WatchNest account.
+            </p>
+            <div style="background:#e8f5e9;padding:15px;border-radius:8px;border-left:4px solid #10b981;margin:20px 0;">
+              <p style="margin:0;"><b>Status:</b> Active</p>
               <p style="margin:8px 0 0 0;"><b>PIN Length:</b> ${pin.length} digits</p>
-              <p style="margin:8px 0 0 0;"><b>Time:</b> ${new Date().toLocaleString("en-IN")}</p>
+              <p style="margin:8px 0 0 0;"><b>Activated On:</b> ${new Date().toLocaleString("en-IN")}</p>
             </div>
+            <p>
+              Your content filter is now protecting your account. 
+              Any search that goes against the filter policy will be blocked automatically.
+            </p>
+            <p style="color:#888;font-size:13px;">
+              If you did not perform this action, please contact WatchNest support immediately.
+            </p>
+            <p>Regards,<br/><b>WatchNest Team</b></p>
           </div>
         `,
       });
     } catch (e) {}
 
     res.json({
-      message: "🎉 PIN set & Content Filter ACTIVATED!",
+      message: "PIN set and Content Filter activated successfully.",
       hasPin: true,
       enabled: true,
       pinLength: pin.length,
     });
   } catch (error) {
-    console.error("❌ setPin error:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// ==================== CHANGE PIN (requires current PIN) ====================
-// POST /api/content-filter/change-pin
+// ==================== CHANGE PIN ====================
 const changePin = async (req, res) => {
   try {
     const { currentPin, newPin, confirmNewPin } = req.body;
-
-    console.log("\n🔑 CHANGE PIN request from:", req.user.email);
 
     if (!currentPin) {
       return res.status(400).json({ message: "Current PIN is required" });
@@ -148,7 +143,7 @@ const changePin = async (req, res) => {
 
     if (currentPin === newPin) {
       return res.status(400).json({
-        message: "New PIN must be different from current",
+        message: "New PIN must be different from current PIN",
       });
     }
 
@@ -156,11 +151,10 @@ const changePin = async (req, res) => {
 
     if (!user.contentFilter?.pin) {
       return res.status(400).json({
-        message: "No PIN set. Use 'Set PIN' first.",
+        message: "No PIN set. Use Set PIN first.",
       });
     }
 
-    // Check lock
     if (
       user.contentFilter.lockedUntil &&
       new Date(user.contentFilter.lockedUntil) > new Date()
@@ -174,7 +168,6 @@ const changePin = async (req, res) => {
       });
     }
 
-    // Verify current PIN
     const hashedCurrent = hashPin(currentPin);
     if (hashedCurrent !== user.contentFilter.pin) {
       user.contentFilter.failedAttempts =
@@ -188,8 +181,27 @@ const changePin = async (req, res) => {
         try {
           await sendEmail({
             to: user.email,
-            subject: "🚨 Content Filter Locked - Wrong PIN",
-            html: `<p>3 wrong PIN attempts detected. Locked for 2 hours.</p>`,
+            subject: "Security Alert - WatchNest Content Filter",
+            html: `
+              <div style="font-family:Arial,sans-serif;max-width:500px;margin:auto;padding:20px;border:1px solid #e0e0e0;border-radius:8px;">
+                <h2 style="color:#f44336;">Hello, I am WatchNest</h2>
+                <p>Dear <b>${user.name}</b>,</p>
+                <p>
+                  We have detected multiple incorrect PIN attempts on your 
+                  WatchNest account. As a security measure, your content 
+                  filter PIN has been temporarily locked.
+                </p>
+                <div style="background:#ffebee;padding:15px;border-radius:8px;border-left:4px solid #f44336;margin:20px 0;">
+                  <p style="margin:0;"><b>Lock Duration:</b> 2 Hours</p>
+                  <p style="margin:8px 0 0 0;"><b>Time:</b> ${new Date().toLocaleString("en-IN")}</p>
+                </div>
+                <p>
+                  If this was not you, please secure your account immediately 
+                  by contacting WatchNest support.
+                </p>
+                <p>Regards,<br/><b>WatchNest Team</b></p>
+              </div>
+            `,
           });
         } catch (e) {}
       }
@@ -203,7 +215,6 @@ const changePin = async (req, res) => {
       });
     }
 
-    // ✅ Update PIN (keep enabled state)
     user.contentFilter.pin = hashPin(newPin);
     user.contentFilter.pinLength = newPin.length;
     user.contentFilter.failedAttempts = 0;
@@ -212,20 +223,27 @@ const changePin = async (req, res) => {
     user.markModified("contentFilter");
     await user.save();
 
-    console.log(`   ✅ PIN changed for ${user.email}`);
-
     try {
       await sendEmail({
         to: user.email,
-        subject: "🔐 Content Filter PIN Changed",
+        subject: "PIN Changed Successfully - WatchNest",
         html: `
-          <div style="font-family:Arial,sans-serif;max-width:500px;margin:auto;padding:20px;">
-            <h2 style="color:#065fd4;">🔐 PIN Changed</h2>
-            <p>Hi <b>${user.name}</b>,</p>
-            <p>Your content filter PIN has been changed successfully.</p>
-            <div style="background:#e3f2fd;padding:15px;border-radius:8px;">
-              <p style="margin:0;"><b>Time:</b> ${new Date().toLocaleString("en-IN")}</p>
+          <div style="font-family:Arial,sans-serif;max-width:500px;margin:auto;padding:20px;border:1px solid #e0e0e0;border-radius:8px;">
+            <h2 style="color:#065fd4;">Hello, I am WatchNest</h2>
+            <p>Dear <b>${user.name}</b>,</p>
+            <p>
+              Your content filter PIN has been changed successfully 
+              on your WatchNest account.
+            </p>
+            <div style="background:#e3f2fd;padding:15px;border-radius:8px;border-left:4px solid #065fd4;margin:20px 0;">
+              <p style="margin:0;"><b>Status:</b> PIN Updated</p>
+              <p style="margin:8px 0 0 0;"><b>Time:</b> ${new Date().toLocaleString("en-IN")}</p>
             </div>
+            <p>
+              If you did not make this change, please contact 
+              WatchNest support immediately.
+            </p>
+            <p>Regards,<br/><b>WatchNest Team</b></p>
           </div>
         `,
       });
@@ -233,7 +251,6 @@ const changePin = async (req, res) => {
 
     res.json({ message: "PIN changed successfully" });
   } catch (error) {
-    console.error("❌ changePin error:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -253,7 +270,6 @@ const toggleFilter = async (req, res) => {
       return res.status(400).json({ message: "PIN required" });
     }
 
-    // Check lock
     if (
       user.contentFilter.lockedUntil &&
       new Date(user.contentFilter.lockedUntil) > new Date()
@@ -284,21 +300,14 @@ const toggleFilter = async (req, res) => {
       });
     }
 
-    // Toggle
     user.contentFilter.enabled = !user.contentFilter.enabled;
     user.contentFilter.failedAttempts = 0;
 
     user.markModified("contentFilter");
     await user.save();
 
-    console.log(
-      `   Filter ${user.contentFilter.enabled ? "ON" : "OFF"} for ${user.email}`
-    );
-
     res.json({
-      message: `Content filter ${
-        user.contentFilter.enabled ? "enabled" : "disabled"
-      }`,
+      message: `Content filter ${user.contentFilter.enabled ? "enabled" : "disabled"} successfully`,
       enabled: user.contentFilter.enabled,
     });
   } catch (error) {
@@ -358,17 +367,33 @@ const removeFilter = async (req, res) => {
     user.markModified("contentFilter");
     await user.save();
 
-    console.log(`   ✅ Filter removed for ${user.email}`);
-
     try {
       await sendEmail({
         to: user.email,
-        subject: "🔓 Content Filter Removed",
-        html: `<p>Your content filter has been removed.</p>`,
+        subject: "Content Filter Removed - WatchNest",
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:500px;margin:auto;padding:20px;border:1px solid #e0e0e0;border-radius:8px;">
+            <h2 style="color:#ff9800;">Hello, I am WatchNest</h2>
+            <p>Dear <b>${user.name}</b>,</p>
+            <p>
+              Your content filter has been successfully removed 
+              from your WatchNest account.
+            </p>
+            <div style="background:#fff3e0;padding:15px;border-radius:8px;border-left:4px solid #ff9800;margin:20px 0;">
+              <p style="margin:0;"><b>Status:</b> Filter Removed</p>
+              <p style="margin:8px 0 0 0;"><b>Time:</b> ${new Date().toLocaleString("en-IN")}</p>
+            </div>
+            <p>
+              If you did not perform this action, please contact 
+              WatchNest support immediately to secure your account.
+            </p>
+            <p>Regards,<br/><b>WatchNest Team</b></p>
+          </div>
+        `,
       });
     } catch (e) {}
 
-    res.json({ message: "Content filter removed" });
+    res.json({ message: "Content filter removed successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -400,7 +425,7 @@ const checkSearchQuery = async (req, res) => {
       user.lastViolationAt = new Date();
       await user.save();
 
-      sendViolationAlert(user, query, result).catch((e) =>
+      sendViolationAlert(user, result).catch((e) =>
         console.error("Alert failed:", e.message)
       );
 
@@ -419,7 +444,8 @@ const checkSearchQuery = async (req, res) => {
   }
 };
 
-const sendViolationAlert = async (user, query, result) => {
+// ==================== VIOLATION ALERT (NO QUERY PRINTED) ====================
+const sendViolationAlert = async (user, result) => {
   const level =
     user.violationCount === 1
       ? "First"
@@ -429,37 +455,43 @@ const sendViolationAlert = async (user, query, result) => {
       ? "Third"
       : `${user.violationCount}th`;
 
-  const severity =
+  const borderColor =
     user.violationCount >= 3
-      ? "🚨 CRITICAL"
+      ? "#f44336"
       : user.violationCount === 2
-      ? "⚠️ WARNING"
-      : "📋 NOTICE";
+      ? "#ff9800"
+      : "#065fd4";
+
+  const bgColor =
+    user.violationCount >= 3
+      ? "#ffebee"
+      : user.violationCount === 2
+      ? "#fff3e0"
+      : "#e3f2fd";
 
   await sendEmail({
     to: user.email,
-    subject: `${severity} - Restricted Content Search Detected`,
+    subject: "Alert - WatchNest",
     html: `
-      <div style="font-family:Arial,sans-serif;max-width:500px;margin:auto;padding:20px;">
-        <h2 style="color:#f44336;">${severity}</h2>
-        <p>Hi <b>${user.name}</b>,</p>
-        <p><b>${level} violation</b> on your account.</p>
-        <div style="background:#ffebee;padding:15px;border-radius:8px;margin:20px 0;border-left:4px solid #f44336;">
-          <p style="margin:0 0 8px 0;"><b>Blocked Search:</b></p>
-          <p style="background:white;padding:8px;border-radius:4px;margin:0;font-family:monospace;">
-            "${query.substring(0, 100)}"
-          </p>
-          <p style="margin:12px 0 0 0;font-size:13px;">
-            <b>Categories:</b> ${result.categories.join(", ")}<br>
-            <b>Time:</b> ${new Date().toLocaleString("en-IN")}<br>
-            <b>Total violations:</b> ${user.violationCount}
-          </p>
-        </div>
+      <div style="font-family:Arial,sans-serif;max-width:500px;margin:auto;padding:20px;border:1px solid #e0e0e0;border-radius:8px;">
+        <h2 style="color:${borderColor};">Hello, I am WatchNest</h2>
+        <p>Dear <b>${user.name}</b>,</p>
+        <p>
+          We would like to inform you that a search was attempted on your 
+          WatchNest account that goes against your active content filter policy. 
+          The search has been <b>blocked automatically</b>.
+        </p>
+        
+        <p>
+          Your content filter is working correctly 
+        </p>
+        <p>Regards,<br/><b>WatchNest</b></p>
       </div>
     `,
   });
 };
 
+// ==================== GET VIOLATIONS ====================
 const getViolations = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select(
@@ -474,14 +506,10 @@ const getViolations = async (req, res) => {
   }
 };
 
-// DEBUG - GET /api/content-filter/debug
+// ==================== DEBUG ====================
 const debugStatus = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
-    
-    console.log("\n🔍 DEBUG - User contentFilter:");
-    console.log(JSON.stringify(user.contentFilter, null, 2));
-    
     res.json({
       raw: user.contentFilter,
       hasPin: !!user.contentFilter?.pin,
@@ -495,7 +523,7 @@ const debugStatus = async (req, res) => {
 module.exports = {
   getFilterStatus,
   setPin,
-  changePin,        // ✅ NEW - separate route
+  changePin,
   toggleFilter,
   removeFilter,
   checkSearchQuery,
