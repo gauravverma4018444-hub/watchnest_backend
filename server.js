@@ -135,11 +135,12 @@ app.set("io", io);
 // ══════════════════════════════════════════════════════════════
 const safeRoute = (routePath, apiPath) => {
   try {
-    if (fs.existsSync(path.join(__dirname, routePath + ".js"))) {
+    const fullPath = path.join(__dirname, routePath + ".js");
+    if (fs.existsSync(fullPath)) {
       app.use(apiPath, require(routePath));
-      console.log(`✅ Loaded: ${apiPath}`);
+      console.log(`✅ Loaded: ${apiPath.padEnd(28)} → ${routePath}`);
     } else {
-      console.log(`⚠️  Skipped (not found): ${routePath}`);
+      console.log(`⚠️  MISSING ROUTE FILE → ${apiPath} (expected: ${routePath}.js)`);
     }
   } catch (err) {
     console.log(`❌ Error loading ${routePath}: ${err.message}`);
@@ -160,7 +161,6 @@ safeRoute("./routes/subscriptionRoutes", "/api/subscription");
 safeRoute("./routes/themeRoutes",        "/api/theme");
 safeRoute("./routes/commentRoutes",      "/api/comments");
 safeRoute("./routes/subscribeRoutes",    "/api/subscribe");
-safeRoute("./routes/clipRoutes",         "/api/clips");
 safeRoute("./routes/moderationRoutes",   "/api/moderate");
 safeRoute("./routes/historyRoutes",      "/api/history");
 safeRoute("./routes/playlistRoutes",     "/api/playlists");
@@ -172,7 +172,6 @@ safeRoute("./routes/roomRoutes",         "/api/rooms");
 safeRoute("./routes/friendRoutes",       "/api/friends");
 safeRoute("./routes/notificationRoutes", "/api/notifications");
 safeRoute("./routes/invitationRoutes",   "/api/invitations");
-safeRoute("./routes/chatRoutes",         "/api/chat");
 safeRoute("./routes/recordingRoutes",    "/api/recordings");
 
 // ══════════════════════════════════════════════════════════════

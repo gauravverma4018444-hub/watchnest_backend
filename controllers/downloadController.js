@@ -60,6 +60,8 @@ const downloadVideo = async (req, res) => {
       video: videoId,
       userPlanAtDownload: user.plan,
     });
+    
+    // DELETE /api/downloads/:downloadId
 
     // Update user download count
     const dbUser = await User.findById(user._id);
@@ -151,10 +153,27 @@ const getDownloadStatus = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+const removeDownload = async (req, res) => {
+  try {
+    const { downloadId } = req.params;
+    const download = await Download.findOne({
+      _id: downloadId,
+      user: req.user._id,
+    });
+    if (!download) {
+      return res.status(404).json({ message: "Download not found" });
+    }
+    await Download.deleteOne({ _id: downloadId });
+    res.status(200).json({ success: true, message: "Download removed" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 module.exports = {
   downloadVideo,
   getDownloads,
   getMyDownloads,
   getDownloadStatus,
+  removeDownload,
 };
