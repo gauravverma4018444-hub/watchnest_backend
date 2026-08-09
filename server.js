@@ -87,8 +87,6 @@ app.use(passport.initialize());
 //  STATIC FILES
 // ══════════════════════════════════════════════════════════════
 app.use("/uploads",    express.static(path.join(__dirname, "uploads")));
-app.use("/recordings", express.static(path.join(__dirname, "recordings")));
-
 // ══════════════════════════════════════════════════════════════
 //  REQUEST LOGGER (dev only)
 // ══════════════════════════════════════════════════════════════
@@ -172,7 +170,6 @@ safeRoute("./routes/roomRoutes",         "/api/rooms");
 safeRoute("./routes/friendRoutes",       "/api/friends");
 safeRoute("./routes/notificationRoutes", "/api/notifications");
 safeRoute("./routes/invitationRoutes",   "/api/invitations");
-safeRoute("./routes/recordingRoutes",    "/api/recordings");
 
 // ══════════════════════════════════════════════════════════════
 //  HEALTH CHECK ROUTES
